@@ -134,6 +134,14 @@
   .controls{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 14px;align-items:center}
   .switch{display:inline-flex;align-items:center;gap:9px;background:#2c2c30;border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-weight:700;font-size:13.5px;min-height:44px;cursor:pointer}
   .switch input{width:20px;height:20px;accent-color:var(--yellow)}
+  .voice-picker{margin:0 14px 12px;background:#121214;border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+  .voice-picker label{display:block;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#eee;margin-bottom:7px}
+  .voice-picker-row{display:flex;gap:8px;flex-wrap:wrap}
+  .voice-picker select{flex:1;min-width:180px;background:#0f0f10;color:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 10px;font-size:14px;min-height:46px;font-family:inherit}
+  .voice-picker .btn-test{background:var(--yellow);color:#111;border:0;border-radius:10px;padding:11px 14px;font-weight:800;font-size:14px;min-height:46px;white-space:nowrap}
+  .voice-picker .btn-test:active{transform:scale(.98)}
+  .voice-note{margin:7px 0 0;font-size:12.5px;line-height:1.45;color:var(--muted)}
+  .voice-note b{color:#ddd}
   .wa{display:none;margin:0 14px 14px;background:var(--wa);color:#06280f;text-decoration:none;font-weight:900;text-align:center;padding:15px 14px;border-radius:14px;font-size:16px}
   .wa.show{display:flex;align-items:center;justify-content:center}
   .err{display:none;margin:0 14px 14px;background:#3d1420;color:#ffd7de;border:1px solid #6e2436;padding:11px 13px;border-radius:12px;font-size:13.5px;line-height:1.45}
@@ -228,6 +236,14 @@
           <button class="btn btn-red" id="btnTalk" style="flex:1">🎤 HABLAR<span class="sub" style="display:block;font-size:12px;font-weight:600;opacity:.85">Tócalo y háblale — te escucha solo, sin volver a tocar</span></button>
           <label class="switch"><input type="checkbox" id="voiceToggle" checked> 🔊 Voz del Brayan</label>
         </div>
+        <div class="voice-picker" id="voicePicker">
+          <label for="voiceSelect">🗣️ Voz del Brayan — elige la que suene más natural (gratis)</label>
+          <div class="voice-picker-row">
+            <select id="voiceSelect" aria-label="Voz en español del Brayan"><option value="">Cargando voces en español…</option></select>
+            <button type="button" class="btn-test" id="btnTestVoice">▶ Probar voz</button>
+          </div>
+          <p class="voice-note" id="voiceNote">Por defecto se elige la mejor disponible: <b>Google en español</b> primero, luego <b>Microsoft</b>. Tono ajustado a 0.9 para que suene menos robótico. Tu elección se guarda en este aparato.</p>
+        </div>
         <div class="mic-diag" id="micDiag">🎤 <b>Micrófono:</b> sin activar — toca HABLAR y aquí verás qué pasa de verdad.</div>
         <a class="wa" id="waBtn" href="https://wa.me/525544032155" target="_blank" rel="noopener">💬 APARTAR CON MI JEFE ULIS POR WHATSAPP</a>
         <div class="err" id="micErr"></div>
@@ -316,17 +332,123 @@
       .replace(/¡/g,"").replace(/¿/g,"")
       .replace(/\s+/g," ").trim();
   }
+  /* ---------- VOICE PICKER (solo voces del navegador, gratis) ---------- */
+  var VOICE_KEY="el-brayan-voz-v1";
+  var voiceSelectEl=$("voiceSelect"), voiceNoteEl=$("voiceNote");
+  var spanishVoices=[];
+
+  function voiceScore(v){
+    var name=(v.name||"").toLowerCase(), lang=(v.lang||"").replace("_","-").toLowerCase();
+    var s=0;
+    // Provider priority: Google first, then Microsoft
+    if(name.indexOf("google")!==-1) s+=100;
+    else if(name.indexOf("microsoft")!==-1) s+=60;
+    // Region priority: es-MX, then es-US, then any other es
+    if(lang==="es-mx") s+=50;
+    else if(lang==="es-us") s+=40;
+    else if(lang.indexOf("es")===0) s+=15;
+    // Slight bonus for known male / natural names, without overriding provider
+    if(/jorge|pablo|diego|carlos|juan|raul|male/.test(name)) s+=5;
+    if(v.localService===false) s+=2; // cloud/network voices (e.g. Google) tend to sound better
+    return s;
+  }
+  function sortedSpanishVoices(list){
+    return list.slice().sort(function(a,b){ return voiceScore(b)-voiceScore(a); });
+  }
+  function getSavedVoiceId(){
+    try{ return localStorage.getItem(VOICE_KEY)||""; }catch(e){ return ""; }
+  }
+  function saveVoiceId(id){
+    try{ if(id) localStorage.setItem(VOICE_KEY,id); }catch(e){}
+  }
+  function voiceId(v){ return v.voiceURI||v.name; }
+  function findVoiceById(id){
+    if(!id) return null;
+    for(var i=0;i<spanishVoices.length;i++){ if(voiceId(spanishVoices[i])===id || spanishVoices[i].name===id) return spanishVoices[i]; }
+    return null;
+  }
   function pickVoice(){
     try{
-      var vs=window.speechSynthesis.getVoices()||[];
-      var mx=vs.filter(function(v){return /es[-_]MX/i.test(v.lang);});
-      var es=vs.filter(function(v){return /^es/i.test(v.lang);});
-      var pool=mx.length?mx:es;
-      var male=pool.filter(function(v){return /jorge|pablo|diego|carlos|juan|male|hombre/i.test(v.name);});
-      return male[0]||pool[0]||null;
+      // 1) What the user picked in the selector
+      if(voiceSelectEl && voiceSelectEl.value){
+        var chosen=findVoiceById(voiceSelectEl.value);
+        if(chosen) return chosen;
+      }
+      // 2) What was saved on a previous visit
+      var saved=findVoiceById(getSavedVoiceId());
+      if(saved) return saved;
+      // 3) Best available by priority (Google es-MX/es-US > Microsoft > rest)
+      if(spanishVoices.length) return sortedSpanishVoices(spanishVoices)[0];
+      // 4) Live fallback if voices not cached yet
+      var vs=(window.speechSynthesis.getVoices()||[]).filter(function(v){ return /^es/i.test(v.lang||""); });
+      if(vs.length) return sortedSpanishVoices(vs)[0];
+      return null;
     }catch(e){ return null; }
   }
-  if("speechSynthesis" in window){ window.speechSynthesis.onvoiceschanged=function(){}; }
+  function populateVoiceSelect(){
+    if(!("speechSynthesis" in window) || !voiceSelectEl) return;
+    var all=[];
+    try{ all=window.speechSynthesis.getVoices()||[]; }catch(e){ all=[]; }
+    var es=all.filter(function(v){ return /^es([-_]|$)/i.test((v.lang||"").replace("_","-")) || /^es/i.test(v.lang||""); });
+    // Some browsers report lang like "es-MX" / "es_MX" / "es-419"
+    if(!es.length) es=all.filter(function(v){ return /es/i.test(v.lang||""); });
+    spanishVoices=sortedSpanishVoices(es);
+    var prevId=voiceSelectEl.value || getSavedVoiceId();
+    voiceSelectEl.innerHTML="";
+    if(!spanishVoices.length){
+      var opt0=document.createElement("option"); opt0.value=""; opt0.textContent="Sin voces en español en este aparato — se usa la voz por defecto";
+      voiceSelectEl.appendChild(opt0);
+      if(voiceNoteEl) voiceNoteEl.innerHTML="No se encontró ninguna voz en español instalada. El Brayan hablará con la voz por defecto del aparato. En Android, la voz de <b>Google en español</b> suele venir instalada o se descarga gratis desde Ajustes &gt; Accesibilidad &gt; Texto a voz.";
+      return;
+    }
+    spanishVoices.forEach(function(v){
+      var o=document.createElement("option");
+      o.value=voiceId(v);
+      var provider=/google/i.test(v.name)?" · Google":(/microsoft/i.test(v.name)?" · Microsoft":"");
+      o.textContent=v.name+" ("+v.lang+")"+provider;
+      voiceSelectEl.appendChild(o);
+    });
+    // Restore saved / preferred selection
+    var target=findVoiceById(prevId) || spanishVoices[0];
+    if(target){
+      voiceSelectEl.value=voiceId(target);
+      // If nothing was saved yet, persist the smart default so it is stable
+      if(!getSavedVoiceId()) saveVoiceId(voiceId(target));
+      if(voiceNoteEl){
+        var isGoogle=/google/i.test(target.name), isMs=/microsoft/i.test(target.name);
+        voiceNoteEl.innerHTML="Voz activa: <b>"+escapeHtml(target.name)+" ("+escapeHtml(target.lang)+")</b>"+(isGoogle?" — Google, la más natural gratis.":(isMs?" — Microsoft.":""))+" Toca <b>Probar voz</b> para oírla antes de vender. Tu elección se guarda en este aparato.";
+      }
+    }
+  }
+  if("speechSynthesis" in window){
+    populateVoiceSelect();
+    // Voices often arrive async — refresh the list when the browser announces them
+    if(window.speechSynthesis.onvoiceschanged!==undefined){
+      window.speechSynthesis.addEventListener ? window.speechSynthesis.addEventListener("voiceschanged", populateVoiceSelect) : (window.speechSynthesis.onvoiceschanged=populateVoiceSelect);
+    }
+    // Extra retries for Android Chrome where getVoices() starts empty
+    setTimeout(populateVoiceSelect, 250);
+    setTimeout(populateVoiceSelect, 900);
+  }
+  if(voiceSelectEl){
+    voiceSelectEl.addEventListener("change", function(){
+      if(voiceSelectEl.value) saveVoiceId(voiceSelectEl.value);
+      var v=findVoiceById(voiceSelectEl.value);
+      if(v && voiceNoteEl) voiceNoteEl.innerHTML="Voz activa: <b>"+escapeHtml(v.name)+" ("+escapeHtml(v.lang)+")</b>. Toca <b>Probar voz</b> para oírla. Tu elección se guarda en este aparato.";
+    });
+  }
+  var btnTestVoice=$("btnTestVoice");
+  if(btnTestVoice){
+    btnTestVoice.addEventListener("click", function(){
+      if(!("speechSynthesis" in window)){ if(voiceNoteEl) voiceNoteEl.textContent="Este navegador no trae síntesis de voz."; return; }
+      // Make sure the toggle doesn't block the test: force on just for this
+      // utterance (speak() only reads the toggle at entry), then restore it.
+      var wasChecked=voiceToggle.checked;
+      voiceToggle.checked=true;
+      speak("¡Qué onda, carnal! Soy El Brayan. La Doble está en $2,799, es la más vendida. ¿Te la aparto con $50 para hoy o para el finde?");
+      voiceToggle.checked=wasChecked;
+    });
+  }
 
   function speak(text){
     if(!voiceToggle.checked || !("speechSynthesis" in window)) { setSpeaking(false); maybeResumeListen(); return; }
@@ -334,8 +456,8 @@
     var mySeq=++speakSeq;
     var clean=spokenText(text);
     var u=new SpeechSynthesisUtterance(clean);
-    u.lang="es-MX"; u.pitch=0.6; u.rate=0.95;
-    var v=pickVoice(); if(v) u.voice=v;
+    u.pitch=0.9; u.rate=0.95;
+    var v=pickVoice(); if(v){ u.voice=v; u.lang=v.lang||"es-MX"; } else { u.lang="es-MX"; }
     setSpeaking(true);
     var done=false, resumeTimer=null;
     function finish(){
