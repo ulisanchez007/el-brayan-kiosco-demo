@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<title>El Brayan — Kiosco Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f0f10; --panel:#1a1a1c; --panel2:#232326; --line:#333338;
+    --yellow:#ffd400; --yellow2:#ffb800; --ink:#ffffff; --muted:#b8b8be;
+    --red:#ff453a; --green:#30d158; --wa:#25d366;
+    --skin:#f2b183; --skin2:#e09a68;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Archivo',system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  button{font-family:inherit;min-height:44px;cursor:pointer}
+  a{min-height:44px}
+  /* DEMO BANNER — static and slim: it must never cover or push the controls off screen */
+  .demo-bar{background:var(--yellow);color:#111;padding:7px 12px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;text-align:center}
+  .demo-bar strong{font-family:'Archivo Black',sans-serif;letter-spacing:.04em;font-size:12px;background:#111;color:var(--yellow);padding:4px 9px;border-radius:999px}
+  .demo-bar span{font-weight:700;font-size:12.5px;line-height:1.3}
+  /* LAYOUT */
+  .wrap{max-width:1180px;margin:0 auto;padding:16px 14px 28px}
+  .top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:6px 0 14px}
+  .top h1{font-family:'Archivo Black',sans-serif;font-size:clamp(28px,5vw,44px);line-height:.95;margin:0;text-transform:uppercase}
+  .top h1 em{font-style:normal;color:var(--yellow)}
+  .top p{margin:6px 0 0;color:var(--muted);font-size:15px;line-height:1.45;max-width:560px}
+  .hw{display:flex;gap:6px;flex-wrap:wrap}
+  .hw span{font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--panel);padding:7px 9px;border-radius:999px;color:#e8e8ec}
+  .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:14px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .card-h{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .card-h b{font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+  .pill{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:#2c2c30;color:#ddd}
+  .pill.live{background:#12351f;color:#7dff9a}
+  .pill.talk{background:#3a2f00;color:var(--yellow)}
+  .pill.listen{background:#3d1420;color:#ff9db0}
+  /* FACE */
+  .stage{background:radial-gradient(700px 380px at 50% 0%, #2e2a12 0%, #17171a 58%);padding:22px 14px 18px;text-align:center;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .face-scale{transition:transform .25s}
+  /* Speech bubble in the stage: Brayan's latest line shows right at the face,
+     so every button press visibly answers on the spot — even on a phone,
+     where the chat sits further down the page. */
+  .bubble{display:none;max-width:360px;margin:12px auto 2px;background:#2a2a18;border:1px solid #4a4416;color:#fff;border-radius:14px;border-bottom-left-radius:4px;padding:10px 13px;font-size:14.5px;line-height:1.45;text-align:left;white-space:pre-line}
+  .bubble.show{display:block}
+  .bubble b{color:var(--yellow)}
+  /* PHONE: compact header + smaller face, so the greeting button, the products
+     and the chat controls are a short scroll away instead of buried under
+     the title, the hardware pills and a full-screen face. */
+  @media(max-width:860px){
+    .wrap{padding:10px 10px 22px}
+    .top{margin:2px 0 10px;gap:8px}
+    .top h1{font-size:27px}
+    .top p{display:none}
+    .hw{display:none}
+    .stage{padding:14px 10px 14px}
+    .face-scale{transform:scale(.72);height:182px;width:196px;display:flex;justify-content:center}
+    .face-wrap{margin:0 auto}
+    .shirt{font-size:12px;padding:7px 9px}
+    .status{font-size:13.5px}
+    .chat{height:230px}
+  }
+  .face-wrap{width:250px;height:250px;margin:2px auto 6px;position:relative;animation:bob 3.2s ease-in-out infinite;flex:0 0 auto}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @media(prefers-reduced-motion:reduce){.face-wrap{animation:none}.mouth.talking{animation:none!important}.btn-red.listening{animation:none}}
+  .head{position:absolute;inset:28px 18px 10px;background:linear-gradient(180deg,var(--skin),var(--skin2));border-radius:46% 46% 48% 48%/42% 42% 55% 55%;box-shadow:inset 0 -14px 0 rgba(0,0,0,.08)}
+  .ear{position:absolute;top:118px;width:26px;height:38px;background:var(--skin2);border-radius:50%}
+  .ear.l{left:4px}.ear.r{right:4px}
+  .cap{position:absolute;top:2px;left:50%;transform:translateX(-50%);width:196px;height:74px;background:#111;border-radius:100px 100px 18px 18px;border:3px solid #000;z-index:3}
+  .cap::after{content:"EL BRAYAN";position:absolute;inset:auto 0 10px;text-align:center;color:var(--yellow);font-family:'Archivo Black',sans-serif;font-size:15px;letter-spacing:.06em}
+  .cap-brim{position:absolute;top:54px;right:-8px;width:88px;height:20px;background:var(--yellow);border-radius:999px;transform:rotate(6deg);z-index:2;border:2px solid #111}
+  .brow{position:absolute;top:106px;width:46px;height:9px;background:#1c120b;border-radius:999px;z-index:4}
+  .brow.l{left:52px;transform:rotate(-6deg)}.brow.r{right:52px;transform:rotate(6deg)}
+  .eye{position:absolute;top:122px;width:40px;height:44px;background:#fff;border-radius:50%;overflow:hidden;z-index:4;box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)}
+  .eye.l{left:50px}.eye.r{right:50px}
+  .pupil{position:absolute;left:50%;top:55%;width:18px;height:22px;background:#17110c;border-radius:50%;transform:translate(-50%,-50%);transition:transform .25s}
+  .pupil::after{content:"";position:absolute;top:3px;left:4px;width:6px;height:6px;background:#fff;border-radius:50%}
+  .lid{position:absolute;inset:0 0 auto;height:0;background:var(--skin2);animation:blink 4.6s infinite;z-index:5}
+  @keyframes blink{0%,92%,100%{height:0}95%{height:100%}}
+  .nose{position:absolute;left:50%;top:158px;transform:translateX(-50%);width:18px;height:24px;border-radius:999px;background:rgba(0,0,0,.10);z-index:4}
+  .mouth{position:absolute;left:50%;top:192px;transform:translateX(-50%);width:64px;height:14px;background:#5b2116;border-radius:0 0 40px 40px;z-index:4;transition:height .12s;border:2px solid rgba(0,0,0,.15)}
+  .mouth.talking{animation:talk .28s ease-in-out infinite alternate}
+  @keyframes talk{from{height:10px;width:54px}to{height:28px;width:70px}}
+  .mouth.smile{height:18px;width:74px}
+  .shirt{margin:0 auto;width:190px;background:var(--yellow);color:#111;font-family:'Archivo Black',sans-serif;font-size:13px;padding:9px 10px;border-radius:12px 12px 0 0;letter-spacing:.03em}
+  .status{font-size:14px;font-weight:700;color:#f2f2f4;min-height:22px}
+  .status small{display:block;color:var(--muted);font-weight:600;font-size:12.5px;margin-top:2px}
+  .big-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px}
+  @media(max-width:420px){.big-actions{grid-template-columns:1fr}}
+  .btn{border:0;border-radius:14px;padding:13px 14px;font-weight:800;font-size:15px;line-height:1.25}
+  .btn-yellow{background:var(--yellow);color:#111}
+  .btn-dark{background:#2c2c30;color:#fff;border:1px solid var(--line)}
+  .btn-red{background:var(--red);color:#fff}
+  .btn-red.listening{background:#b3001b;animation:micpulse 1.1s ease-in-out infinite}
+  @keyframes micpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,69,58,.55)}50%{box-shadow:0 0 0 9px rgba(255,69,58,0)}}
+  .btn-green{background:var(--green);color:#06280f}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn .sub{display:block;font-size:12px;font-weight:600;opacity:.75;margin-top:2px}
+  /* CAMERA */
+  .cam-box{position:relative;background:#000;aspect-ratio:16/10}
+  .cam-box video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
+  .cam-off{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#cfcfd4;text-align:center;padding:18px;font-size:14px;line-height:1.4}
+  .cam-off .big{font-size:34px}
+  .cam-tag{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.72);color:#fff;font-size:11px;font-weight:800;letter-spacing:.06em;padding:6px 9px;border-radius:999px}
+  /* PRODUCTS */
+  .products{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px}
+  @media(max-width:420px){.products{grid-template-columns:1fr}}
+  .prod{border:2px solid var(--line);background:var(--panel2);border-radius:14px;padding:14px;text-align:left;color:var(--ink);width:100%}
+  .prod.sel{border-color:var(--yellow)}
+  .prod .tag{display:inline-block;font-size:11px;font-weight:900;letter-spacing:.05em;background:var(--red);color:#fff;padding:4px 8px;border-radius:999px;margin-bottom:8px}
+  .prod .tag.grey{background:#3a3a3f;color:#ddd}
+  .prod h3{margin:0;font-size:18px}
+  .prod .price{font-family:'Archivo Black',sans-serif;font-size:26px;margin:4px 0;color:var(--yellow)}
+  .prod p{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
+  .apartado{margin:0 14px 14px;background:#fff3b0;color:#201a00;border-radius:12px;padding:11px 13px;font-weight:700;font-size:14px;line-height:1.4}
+  /* CHAT */
+  .chat{height:300px;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:#121214}
+  .msg{max-width:88%;padding:10px 12px;border-radius:14px;font-size:14.5px;line-height:1.45;white-space:pre-line}
+  .msg.brayan{background:#2a2a18;border:1px solid #4a4416;align-self:flex-start;border-bottom-left-radius:4px}
+  .msg.brayan b{color:var(--yellow)}
+  .msg.user{background:#243447;align-self:flex-end;border-bottom-right-radius:4px}
+  .msg.sys{background:transparent;color:var(--muted);align-self:center;text-align:center;font-size:12.5px;max-width:100%;padding:2px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px 4px}
+  .chip{background:#2c2c30;color:#fff;border:1px solid var(--line);border-radius:999px;padding:10px 13px;font-weight:700;font-size:13.5px;min-height:40px}
+  .chip:active{transform:scale(.98)}
+  .composer{display:flex;gap:8px;padding:12px 14px 14px}
+  .composer input{flex:1;min-width:0;background:#0f0f10;border:1px solid var(--line);border-radius:12px;color:#fff;padding:12px;font-size:15px;min-height:48px}
+  .composer button{flex:0 0 auto}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 14px;align-items:center}
+  .switch{display:inline-flex;align-items:center;gap:9px;background:#2c2c30;border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-weight:700;font-size:13.5px;min-height:44px;cursor:pointer}
+  .switch input{width:20px;height:20px;accent-color:var(--yellow)}
+  .wa{display:none;margin:0 14px 14px;background:var(--wa);color:#06280f;text-decoration:none;font-weight:900;text-align:center;padding:15px 14px;border-radius:14px;font-size:16px}
+  .wa.show{display:flex;align-items:center;justify-content:center}
+  .err{display:none;margin:0 14px 14px;background:#3d1420;color:#ffd7de;border:1px solid #6e2436;padding:11px 13px;border-radius:12px;font-size:13.5px;line-height:1.45}
+  .err.show{display:block}
+  .mic-diag{margin:0 14px 14px;font-size:12.5px;color:var(--muted);background:#121214;border:1px dashed var(--line);border-radius:10px;padding:8px 11px;line-height:1.5}
+  .mic-diag b{color:#eee}
+  .how{margin-top:14px}
+  .how-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px}
+  @media(max-width:860px){.how-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:420px){.how-grid{grid-template-columns:1fr}}
+  .how-item{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .how-item .ic{font-size:22px}
+  .how-item b{display:block;margin:6px 0 3px;font-size:14px}
+  .how-item p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+  .note{color:var(--muted);font-size:13px;line-height:1.55;padding:0 2px;margin-top:12px}
+  .note b{color:#eee}
+</style>
+</head>
+<body>
+<div class="demo-bar"><strong>DEMO</strong><span>Esto es una prueba en el navegador. El catálogo se puede cambiar por los productos reales de tu isla.</span></div>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>El Brayan<br><em>Kiosco vendedor</em></h1>
+      <p>Acércate al mostrador y El Brayan te saluda, te enseña las maquinitas y te aparta la tuya con $50. Habla con él por voz o escríbele abajo.</p>
+    </div>
+    <div class="hw" aria-label="Partes del kiosco">
+      <span>🖥️ Pantalla = su cara</span><span>📷 Cámara = sus ojos</span><span>🎤 Micrófono = sus oídos</span><span>🔊 Bocina = su voz</span><span>💻 CPU = su cerebro</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT: BRAYAN + PRODUCTS -->
+    <section class="card" aria-label="El Brayan">
+      <div class="card-h"><b>🕹️ El Brayan en el mostrador</b><span class="pill" id="statePill">💤 Esperando cliente</span></div>
+      <div class="stage" id="kioskStage">
+        <div class="face-scale"><div class="face-wrap" aria-hidden="true">
+          <div class="ear l"></div><div class="ear r"></div>
+          <div class="head"></div>
+          <div class="cap"></div><div class="cap-brim"></div>
+          <div class="brow l"></div><div class="brow r"></div>
+          <div class="eye l"><div class="pupil" id="pupilL"></div><div class="lid"></div></div>
+          <div class="eye r"><div class="pupil" id="pupilR"></div><div class="lid"></div></div>
+          <div class="nose"></div>
+          <div class="mouth smile" id="mouth"></div>
+        </div></div>
+        <div class="shirt">VENDEDOR DE LA ISLA</div>
+        <p class="status" id="statusText">Estoy esperando a que se acerque un cliente…<small>Toca el botón amarillo de abajo y El Brayan te saluda aquí mismo.</small></p>
+        <div class="bubble" id="stageBubble" aria-live="polite"></div>
+      </div>
+      <div class="big-actions">
+        <button class="btn btn-yellow" id="btnArrive">👋 SIMULAR QUE LLEGA UN CLIENTE<span class="sub">Esto hace la cámara en el kiosco real: detecta que alguien se acercó</span></button>
+        <button class="btn btn-dark" id="btnReset">🔄 OTRO CLIENTE<span class="sub">Reinicia la plática desde cero</span></button>
+      </div>
+      <div class="card-h" style="border-top:1px solid var(--line)"><b>Catálogo de la demo</b><span class="pill">Apartado: $50</span></div>
+      <div class="products">
+        <button class="prod" id="prodSencillo" type="button">
+          <span class="tag grey">PARA 1 JUGADOR</span>
+          <h3>Máquina Arcade Sencillo</h3><div class="price">$2,699</div>
+          <p>Ideal para empezar. Compacta, lista para jugar en tu casa o negocio.</p>
+        </button>
+        <button class="prod sel" id="prodDoble" type="button">
+          <span class="tag">★ LA MÁS VENDIDA</span>
+          <h3>Máquina Arcade Doble</h3><div class="price">$2,799</div>
+          <p>Para 2 jugadores, retas con tu carnal. Solo $100 más que la sencilla.</p>
+        </button>
+      </div>
+      <p class="apartado">💰 <b>Apartado con $50</b> — para hoy o para el finde. Al aceptar, El Brayan te pasa con <b>mi jefe Ulis</b> por WhatsApp para cerrar tu apartado.</p>
+    </section>
+
+    <!-- RIGHT: CAMERA + CHAT -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <section class="card" aria-label="Plática de venta">
+        <div class="card-h"><b>💬 Plática de venta</b><span class="pill" id="micPill">Micrófono sin activar</span></div>
+        <div class="chat" id="chat" aria-live="polite">
+          <div class="msg sys">El Brayan habla corto, estilo barrio — su cierre siempre es apartarte con $50, para hoy o para el finde.</div>
+        </div>
+        <div class="chips" aria-label="Respuestas rápidas">
+          <button class="chip" data-say="¿Cuánto cuesta?">¿Cuánto cuesta?</button>
+          <button class="chip" data-say="Quiero la doble">Quiero la Doble</button>
+          <button class="chip" data-say="Está caro">Está caro</button>
+          <button class="chip" data-say="¿Cómo la aparto?">¿Cómo la aparto?</button>
+          <button class="chip" data-say="Hoy" id="chipHoy">Hoy</button>
+          <button class="chip" data-say="El finde" id="chipFinde">El finde</button>
+        </div>
+        <div class="composer">
+          <input id="textInput" type="text" placeholder="Escríbele al Brayan… ej. ¿cuánto vale la doble?" autocomplete="off" />
+          <button class="btn btn-yellow" id="btnSend">ENVIAR</button>
+        </div>
+        <div class="controls">
+          <button class="btn btn-red" id="btnTalk" style="flex:1">🎤 HABLAR<span class="sub" style="display:block;font-size:12px;font-weight:600;opacity:.85">Tócalo y háblale — te escucha solo, sin volver a tocar</span></button>
+          <label class="switch"><input type="checkbox" id="voiceToggle" checked> 🔊 Voz del Brayan</label>
+        </div>
+        <div class="mic-diag" id="micDiag">🎤 <b>Micrófono:</b> sin activar — toca HABLAR y aquí verás qué pasa de verdad.</div>
+        <a class="wa" id="waBtn" href="https://wa.me/525544032155" target="_blank" rel="noopener">💬 APARTAR CON MI JEFE ULIS POR WHATSAPP</a>
+        <div class="err" id="micErr"></div>
+      </section>
+
+      <section class="card" aria-label="Cámara">
+        <div class="card-h"><b>📷 Cámara — los ojos del Brayan</b><span class="pill" id="camPill">Apagada</span></div>
+        <div class="cam-box">
+          <video id="camVideo" autoplay playsinline muted></video>
+          <div class="cam-off" id="camOff"><div class="big">📷</div><div>Aquí te ves tú, el cliente.<br>En el kiosco real, esta cámara detecta que te acercaste y El Brayan te saluda solo.</div></div>
+          <span class="cam-tag" id="camTag" style="display:none">● EN VIVO · SOLO DETECTA PRESENCIA, NO IDENTIFICA A NADIE</span>
+        </div>
+        <div class="big-actions" style="padding-bottom:14px">
+          <button class="btn btn-yellow" id="btnCam">PRENDER CÁMARA</button>
+          <button class="btn btn-dark" id="btnCamOff" disabled>APAGAR CÁMARA</button>
+        </div>
+        <div class="err" id="camErr"></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="card how" aria-label="Cómo funciona el kiosco">
+    <div class="card-h"><b>Así funciona el kiosco en tu isla</b><span class="pill">Demo en navegador · sin IA conectada todavía</span></div>
+    <div class="how-grid">
+      <div class="how-item"><div class="ic">🖥️</div><b>Pantalla</b><p>La cara animada del Brayan, saludando y vendiendo en el mostrador.</p></div>
+      <div class="how-item"><div class="ic">📷</div><b>Cámara = ojos</b><p>Detecta que un cliente se acercó y dispara el saludo. No identifica personas.</p></div>
+      <div class="how-item"><div class="ic">🎤</div><b>Micrófono = oídos</b><p>Escucha lo que pide el cliente. Si no hay voz, escribe en el texto de respaldo.</p></div>
+      <div class="how-item"><div class="ic">🔊</div><b>Bocina = voz</b><p>El Brayan contesta hablando en español, frases cortas, máximo 2 líneas.</p></div>
+      <div class="how-item"><div class="ic">💻</div><b>CPU = cerebro</b><p>Ahí corre esta página. En la versión real se conecta a la IA por internet, con costo de centavos por plática.</p></div>
+    </div>
+  </section>
+  <p class="note"><b>Costos de la IA (versión real):</b> esta demo cuesta <b>$0</b> — usa la voz y el micrófono del navegador, sin IA conectada. El kiosco real se paga <b>por uso</b> (por plática, según cuánto dure la conversación), del orden de <b>centavos por plática</b>, sin renta mensual de la página. La cotización exacta depende del proveedor de IA que se elija al conectar el kiosco, y se confirma antes de instalarlo — aquí no se inventa una cifra cerrada.</p>
+  <p class="note"><b>Nota honesta de la demo:</b> aquí la venta sigue un guion con respuestas del Brayan (sin IA conectada) para que pruebes la cámara, la voz y el cierre. La versión del kiosco real usa la misma pantalla y el mismo flujo, pero la plática libre la lleva la IA. Para probarla bien: ábrela en <b>Chrome</b>, permite cámara y micrófono cuando el navegador los pida.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var chat=$("chat"), mouth=$("mouth"), statePill=$("statePill"), statusText=$("statusText"),
+      micPill=$("micPill"), micErr=$("micErr"), camErr=$("camErr"), waBtn=$("waBtn"),
+      voiceToggle=$("voiceToggle"), textInput=$("textInput");
+
+  var stage="idle"; // idle | greeted | presenting | closing | done
+  var selected="doble";
+  var greeted=false;
+  var speaking=false, wantListen=false, recog=null, recogActive=false, restartTimer=null, speakSeq=0;
+
+  var PRICES={ sencillo:2699, doble:2799 };
+  function money(n){ return "$"+n.toLocaleString("es-MX"); }
+  function prodName(k){ return k==="doble" ? "la Doble" : "la Sencillo"; }
+  function prodPrice(k){ return money(PRICES[k]); }
+
+  /* ---------- CHAT UI ---------- */
+  function addMsg(cls, html){
+    var d=document.createElement("div"); d.className="msg "+cls; d.innerHTML=html;
+    chat.appendChild(d); chat.scrollTop=chat.scrollHeight; return d;
+  }
+  function brayanSay(text){
+    // Max 2 lines: keep as given (our scripts are already <=2 lines)
+    addMsg("brayan","<b>El Brayan:</b> "+text.replace(/\n/g,"<br>"));
+    // Mirror the same line in the bubble next to the face, so the answer is
+    // visible where the user is looking even if the chat is below the fold.
+    var bub=$("stageBubble");
+    if(bub){ bub.innerHTML="<b>El Brayan:</b> "+escapeHtml(text).replace(/\n/g,"<br>"); bub.classList.add("show"); }
+    speak(text);
+  }
+  function userSay(text){ addMsg("user", escapeHtml(text)); }
+  function sysSay(text){ addMsg("sys", escapeHtml(text)); }
+  function escapeHtml(s){ return s.replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+
+  function setState(pillText, cls, statusHtml){
+    statePill.textContent=pillText; statePill.className="pill"+(cls?" "+cls:"");
+    if(statusHtml) statusText.innerHTML=statusHtml;
+  }
+  function lookAtCamera(){ $("pupilL").style.transform="translate(-50%,-50%)"; $("pupilR").style.transform="translate(-50%,-50%)"; }
+
+  /* ---------- VOICE OUT (bocina) ---------- */
+  function spokenText(t){
+    return t
+      .replace(/\$2,799/g,"dos mil setecientos noventa y nueve pesos")
+      .replace(/\$2,699/g,"dos mil seiscientos noventa y nueve pesos")
+      .replace(/\$100/g,"cien pesos")
+      .replace(/\$50/g,"cincuenta pesos")
+      .replace(/[🕹️📷🎤🔊💻👋🔄💬💰★●]/g,"")
+      .replace(/¡/g,"").replace(/¿/g,"")
+      .replace(/\s+/g," ").trim();
+  }
+  function pickVoice(){
+    try{
+      var vs=window.speechSynthesis.getVoices()||[];
+      var mx=vs.filter(function(v){return /es[-_]MX/i.test(v.lang);});
+      var es=vs.filter(function(v){return /^es/i.test(v.lang);});
+      var pool=mx.length?mx:es;
+      var male=pool.filter(function(v){return /jorge|pablo|diego|carlos|juan|male|hombre/i.test(v.name);});
+      return male[0]||pool[0]||null;
+    }catch(e){ return null; }
+  }
+  if("speechSynthesis" in window){ window.speechSynthesis.onvoiceschanged=function(){}; }
+
+  function speak(text){
+    if(!voiceToggle.checked || !("speechSynthesis" in window)) { setSpeaking(false); maybeResumeListen(); return; }
+    try{ window.speechSynthesis.cancel(); }catch(e){}
+    var mySeq=++speakSeq;
+    var clean=spokenText(text);
+    var u=new SpeechSynthesisUtterance(clean);
+    u.lang="es-MX"; u.pitch=0.6; u.rate=0.95;
+    var v=pickVoice(); if(v) u.voice=v;
+    setSpeaking(true);
+    var done=false, resumeTimer=null;
+    function finish(){
+      // A stale utterance (interrupted or replaced) must not clear the
+      // speaking state of a newer one, nor reopen the mic mid-line.
+      if(done||mySeq!==speakSeq) return; done=true;
+      if(resumeTimer) clearInterval(resumeTimer);
+      setSpeaking(false); maybeResumeListen();
+    }
+    u.onend=finish; u.onerror=finish;
+    // Chrome/Android can silently PAUSE speechSynthesis mid-utterance (the
+    // "se queda pausado" bug): nudging resume() while speaking keeps it going.
+    resumeTimer=setInterval(function(){
+      if(mySeq!==speakSeq){ clearInterval(resumeTimer); return; }
+      try{ if(window.speechSynthesis.paused) window.speechSynthesis.resume(); }catch(e){}
+    }, 600);
+    // Safety proportional to the line's length: if TTS still hangs or never
+    // fires onend (common in in-app webviews), free the state in ~3–7s
+    // instead of leaving the face stuck on "Hablando…" for 10s.
+    setTimeout(finish, Math.min(7000, Math.max(2800, clean.length*85)));
+    try{ window.speechSynthesis.speak(u); window.speechSynthesis.resume(); }
+    catch(e){ finish(); }
+  }
+  function setSpeaking(on){
+    speaking=on;
+    mouth.classList.toggle("talking", on);
+    mouth.classList.toggle("smile", !on);
+    if(on) setState("🔊 Hablando…","talk","Te estoy hablando, carnal…<small>Cuando termine, el micrófono se vuelve a abrir solo.</small>");
+    else if(stage!=="idle") setState("👀 Te estoy viendo","live","Estoy en el mostrador, listo para vender.<small>Háblame, toca HABLAR o escríbeme abajo.</small>");
+  }
+  function stopSpeaking(){
+    speakSeq++;
+    try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(e){}
+    setSpeaking(false);
+  }
+
+  /* ---------- VOICE IN (micrófono) with auto-restart ---------- */
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var talkBtn=$("btnTalk"), micDiag=$("micDiag");
+  var recogErrStreak=0, startWatchdog=null, permState="sin consultar";
+
+  // Visible play-by-play next to the button: every tap, start, result and
+  // error lands here, so a failure is never silent again.
+  function diag(txt){ if(micDiag) micDiag.innerHTML="🎤 <b>Micrófono:</b> "+escapeHtml(txt); }
+  // Does the window/frame holding this page actually receive the mic?
+  // Chrome can grant the SITE (muse.ai) the mic and still starve an inner
+  // frame that was never delegated it — the reported case exactly.
+  function policyInfo(){
+    try{
+      if(document.permissionsPolicy && document.permissionsPolicy.allowsFeature){
+        return document.permissionsPolicy.allowsFeature("microphone") ? "delegado a esta ventana" : "BLOQUEADO — el marco (iframe) que contiene la demo NO delega el micrófono";
+      }
+      if(document.featurePolicy && document.featurePolicy.allowsFeature){
+        return document.featurePolicy.allowsFeature("microphone") ? "delegado a esta ventana" : "BLOQUEADO — el marco (iframe) que contiene la demo NO delega el micrófono";
+      }
+    }catch(e){}
+    return "sin dato";
+  }
+  function queryPermState(){
+    try{
+      if(navigator.permissions && navigator.permissions.query){
+        navigator.permissions.query({name:"microphone"}).then(function(p){
+          permState=p.state;
+          if(wantListen && !recogActive) diag("arrancando… · permiso del sitio: "+permState+" · marco/iframe: "+policyInfo());
+        }).catch(function(){});
+      }
+    }catch(e){}
+  }
+  function clearWatchdog(){ if(startWatchdog){ clearTimeout(startWatchdog); startWatchdog=null; } }
+  // If Chrome neither starts recognition nor reports an error, SAY SO with
+  // the real diagnosis instead of sitting in silence: inside a frame
+  // without the mic delegated, start() can die with no onstart, no onerror.
+  function armWatchdog(){
+    clearWatchdog();
+    startWatchdog=setTimeout(function(){
+      startWatchdog=null;
+      if(!wantListen || recogActive) return;
+      wantListen=false; recogActive=false;
+      try{ recog && recog.abort(); }catch(e){}
+      micPill.textContent="La escucha no arrancó";
+      setTalkBtn("blocked");
+      diag("la escucha NO arrancó — Chrome no confirmó el inicio en 2.6 s. Permiso del sitio: "+permState+" · marco/iframe: "+policyInfo()+".");
+      showMicError("Error real: el reconocimiento de voz nunca arrancó — Chrome no confirmó el inicio ni dio un error. Diagnóstico: permiso del sitio = "+permState+"; marco (iframe) = "+policyInfo()+". Cuando la demo va dentro de un marco sin el micrófono delegado, Chrome mata la escucha en silencio aunque el sitio sí tenga permiso. Mientras tanto: escríbele al Brayan en el texto de abajo, la venta sigue igual.");
+      if(stage!=="idle") setState("👀 Te estoy viendo","live","La escucha por voz no arrancó en esta ventana.<small>El aviso de la plática trae el diagnóstico; escríbele al Brayan, también jala.</small>");
+    }, 2600);
+  }
+
+  function showMicError(msg){
+    micErr.textContent=msg; micErr.classList.add("show");
+    // Bring the notice to the user: before, it appeared below the fold and
+    // the failed tap looked like "nothing happened".
+    try{ micErr.scrollIntoView({block:"nearest",behavior:"smooth"}); }catch(e){}
+  }
+  function hideMicError(){ micErr.classList.remove("show"); }
+
+  // The button itself reports the mic state, so every tap shows its result
+  // on the spot — before, only a small pill far from the button changed.
+  function setTalkBtn(mode){
+    talkBtn.classList.toggle("listening", mode==="listening");
+    if(mode==="listening"){
+      talkBtn.innerHTML="🔴 ESCUCHANDO… TOCA PARA PARAR<span class=\"sub\">Háblame ahora: “¿cuánto vale la doble?”</span>";
+    } else if(mode==="starting"){
+      talkBtn.innerHTML="🎤 ACTIVANDO MICRÓFONO…<span class=\"sub\">Si Chrome pregunta por el micrófono, toca “Permitir”</span>";
+    } else if(mode==="blocked"){
+      talkBtn.innerHTML="🎤 HABLAR<span class=\"sub\">El micrófono no se activó — revisa el aviso rojo y vuelve a tocar</span>";
+    } else {
+      talkBtn.innerHTML="🎤 HABLAR<span class=\"sub\">Tócalo y háblale — te escucha solo, sin volver a tocar</span>";
+    }
+  }
+  function micBlocked(msg){
+    clearWatchdog();
+    wantListen=false; recogActive=false; recogErrStreak=0;
+    micPill.textContent="Micrófono bloqueado";
+    setTalkBtn("blocked");
+    showMicError(msg);
+    if(stage!=="idle") setState("👀 Te estoy viendo","live","El micrófono no se pudo activar.<small>Revisa el aviso de la plática o escríbele al Brayan, también jala.</small>");
+  }
+  function buildRecog(){
+    if(!SR) return null;
+    var r=new SR(); r.lang="es-MX"; r.interimResults=false; r.maxAlternatives=1; r.continuous=false;
+    r.onstart=function(){
+      // Confirm listening ONLY when recognition really started — before,
+      // the UI claimed "Escuchando…" even when start() had already failed.
+      clearWatchdog();
+      recogActive=true; recogErrStreak=0;
+      micPill.textContent="🎤 Escuchando…"; setTalkBtn("listening");
+      diag("ESCUCHANDO — Chrome confirmó el inicio. Háblame ahora.");
+      setState("🎤 Escuchando…","listen","Te escucho, carnal…<small>Di por ejemplo: “¿cuánto vale la doble?”</small>");
+    };
+    r.onresult=function(ev){
+      var txt=""; for(var i=ev.resultIndex;i<ev.results.length;i++){ if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript; }
+      txt=txt.trim(); if(txt){ hideMicError(); recogErrStreak=0; diag("te escuché: “"+txt+"”"); userSay(txt); respond(txt); }
+    };
+    r.onerror=function(ev){
+      clearWatchdog(); recogActive=false;
+      diag("error real del navegador: "+ev.error);
+      if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){
+        micBlocked("Error real del navegador: "+ev.error+". Ojo: aunque el sitio muse.ai tenga el micrófono permitido, si la demo va dentro de un marco (iframe) sin el micrófono delegado, Chrome bloquea la escucha igual. Revisa también el candado 🔒 → Micrófono → Permitir y recarga. O escríbele abajo, también jala.");
+      } else if(ev.error==="audio-capture"){
+        micBlocked("Error real del navegador: audio-capture — no se encontró micrófono en este aparato. Revisa que tenga uno disponible o escríbele al Brayan en el texto de abajo.");
+      } else if(ev.error==="no-speech"){
+        diag("no se oyó nada — reintentando sola…");
+        scheduleRestart();
+      } else if(ev.error!=="aborted"){
+        // 'network' and friends: a few retries, then say it out loud with
+        // the real error code instead of looping forever in silence.
+        recogErrStreak++;
+        if(recogErrStreak>=4){
+          micBlocked("Error real del navegador: "+ev.error+" (falló "+recogErrStreak+" veces seguidas). Puede ser la conexión o que esta ventana no deja usar el micrófono. Escríbele al Brayan en el texto de abajo, también jala.");
+        } else scheduleRestart();
+      }
+    };
+    r.onend=function(){
+      recogActive=false;
+      if(wantListen && !speaking) diag("la escucha terminó — reintentando sola…");
+      scheduleRestart();
+    };
+    return r;
+  }
+  function scheduleRestart(){
+    if(!wantListen || speaking) return;
+    clearTimeout(restartTimer);
+    restartTimer=setTimeout(function(){ startListen(false); }, 350);
+  }
+  function startListen(fromTap){
+    if(!SR){ micBlocked("Error real: este navegador no trae reconocimiento de voz (SpeechRecognition no existe en esta ventana). Ábrelo en Chrome o escríbele al Brayan en el texto de abajo."); return; }
+    if(speaking || recogActive) return;
+    if(!recog) recog=buildRecog();
+    if(fromTap){
+      setTalkBtn("starting"); micPill.textContent="Activando micrófono…";
+      diag("arrancando la escucha… · permiso del sitio: "+permState+" · marco/iframe: "+policyInfo());
+      queryPermState();
+    }
+    try{
+      recogActive=true; recog.start();
+      // Arm the watchdog AFTER start(): if Chrome confirms nothing and
+      // reports nothing, the user gets the real diagnosis in ~2.6 s.
+      if(fromTap) armWatchdog();
+    }catch(e){
+      recogActive=false;
+      if(e && e.name==="InvalidStateError"){ scheduleRestart(); }
+      else{
+        diag("error al arrancar: "+(e&&e.name?e.name:"desconocido")+" — "+(e&&e.message?e.message:""));
+        micBlocked("Error real al arrancar el micrófono: "+(e&&e.message?e.message:e)+". Escríbele al Brayan en el texto de abajo, también jala.");
+      }
+    }
+  }
+  function maybeResumeListen(){ if(wantListen && !speaking) scheduleRestart(); }
+
+  talkBtn.addEventListener("click", function(){
+    hideMicError();
+    if(wantListen){
+      wantListen=false; clearWatchdog(); micPill.textContent="Micrófono en pausa"; setTalkBtn("idle");
+      diag("en pausa — toca HABLAR para escuchar de nuevo.");
+      try{ recog && recog.stop(); }catch(e){}
+      setState("👀 Te estoy viendo","live","Micrófono en pausa.<small>Toca HABLAR cuando quieras platicar por voz.</small>");
+      return;
+    }
+    // Start recognition SYNCHRONOUSLY inside the tap (user activation).
+    // Deferring start() behind a getUserMedia promise let Chrome kill it
+    // without a trace. And if Brayan is talking — or starts his greeting
+    // on this very tap — cut his voice so the mic opens NOW; his line
+    // stays readable in the chat and in the bubble by his face.
+    if(speaking) stopSpeaking();
+    wantListen=true;
+    if(!greeted){ arrive(); stopSpeaking(); }
+    startListen(true);
+  });
+
+  /* ---------- CAMERA (ojos) ---------- */
+  var stream=null;
+  $("btnCam").addEventListener("click", function(){
+    camErr.classList.remove("show");
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      camErr.textContent="Este navegador no deja prender la cámara aquí. En el kiosco real la cámara va conectada a la mini PC; en la demo usa el botón “SIMULAR QUE LLEGA UN CLIENTE”.";
+      camErr.classList.add("show"); return;
+    }
+    navigator.mediaDevices.getUserMedia({video:true,audio:false}).then(function(s){
+      stream=s; var v=$("camVideo"); v.srcObject=s;
+      $("camOff").style.display="none"; $("camTag").style.display="inline-block";
+      $("camPill").textContent="Prendida · viendo al cliente"; $("camPill").className="pill live";
+      $("btnCam").disabled=true; $("btnCamOff").disabled=false;
+      lookAtCamera();
+      sysSay("Cámara prendida: El Brayan ya te está viendo.");
+      if(!greeted){ setTimeout(function(){ if(!greeted) arrive(); }, 1600); }
+    }).catch(function(){
+      camErr.textContent="No se pudo prender la cámara (permiso denegado o está en uso). Revisa el permiso en Chrome o usa “SIMULAR QUE LLEGA UN CLIENTE”.";
+      camErr.classList.add("show");
+    });
+  });
+  $("btnCamOff").addEventListener("click", function(){
+    if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
+    $("camVideo").srcObject=null; $("camOff").style.display="flex"; $("camTag").style.display="none";
+    $("camPill").textContent="Apagada"; $("camPill").className="pill";
+    $("btnCam").disabled=false; $("btnCamOff").disabled=true;
+  });
+
+  /* ---------- SALES FLOW ---------- */
+  function selectProduct(k){
+    selected=k;
+    $("prodSencillo").classList.toggle("sel", k==="sencillo");
+    $("prodDoble").classList.toggle("sel", k==="doble");
+  }
+  $("prodSencillo").addEventListener("click", function(){ userSay("La Sencillo"); respond("sencillo"); });
+  $("prodDoble").addEventListener("click", function(){ userSay("La Doble"); respond("doble"); });
+
+  function closeLine(){
+    return "¿Te lo aparto con $50 para hoy o para el finde?";
+  }
+  function greet(){
+    stage="greeted"; greeted=true; lookAtCamera();
+    setState("👀 Te estoy viendo","live","¡Llegó un cliente al mostrador!<small>El Brayan ya lo saludó y empezó la venta.</small>");
+    brayanSay("¡Qué onda, carnal! Soy El Brayan, de esta isla.\nTraigo maquinitas arcade: la Sencillo en $2,699 y la Doble en $2,799, la más vendida.");
+    setTimeout(function(){ if(stage==="greeted"){ stage="presenting"; } }, 400);
+  }
+  function arrive(){
+    if(greeted){ sysSay("El Brayan ya está atendiendo a este cliente."); return; }
+    sysSay("📷 La cámara detectó que un cliente se acercó al mostrador.");
+    greet();
+  }
+  $("btnArrive").addEventListener("click", arrive);
+
+  $("btnReset").addEventListener("click", function(){
+    stage="idle"; greeted=false; selectProduct("doble"); waBtn.classList.remove("show");
+    chat.innerHTML=""; sysSay("Mostrador libre. Esperando al siguiente cliente…");
+    var bub=$("stageBubble"); if(bub){ bub.classList.remove("show"); bub.innerHTML=""; }
+    setState("💤 Esperando cliente","","Estoy esperando a que se acerque un cliente…<small>Toca el botón amarillo de abajo y El Brayan te saluda aquí mismo.</small>");
+    wantListen=false; clearWatchdog(); setTalkBtn("idle"); micPill.textContent="Micrófono sin activar";
+    diag("sin activar — toca HABLAR y aquí verás qué pasa de verdad.");
+    try{ recog && recog.stop(); }catch(e){}
+    stopSpeaking();
+  });
+
+  function confirmApartado(day){
+    stage="done";
+    var prodLabel = selected==="doble" ? "Doble $2,799" : "Sencillo $2,699";
+    var msg="Hola jefe Ulis, soy El Brayan del kiosco demo. Un cliente quiere apartar la máquina arcade "+prodLabel+" con $50 para "+(day==="hoy"?"hoy":"el finde")+".";
+    waBtn.href="https://wa.me/525544032155?text="+encodeURIComponent(msg);
+    waBtn.classList.add("show");
+    brayanSay("¡Eso, carnal! Queda apartada "+prodName(selected)+" para "+(day==="hoy"?"hoy":"el finde")+".\nToca el botón verde y mi jefe Ulis te cierra el apartado por WhatsApp.");
+    sysSay("Toca el botón verde de WhatsApp para pasar con mi jefe Ulis (55 4403 2155).");
+  }
+
+  function respond(raw){
+    var t=(" "+raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")+" ");
+    if(!greeted){ greet(); }
+    // Day choice wins in closing
+    if(/\bhoy\b/.test(t) && (stage==="closing"||stage==="presenting"||stage==="greeted")){ confirmApartado("hoy"); return; }
+    if(/finde|fin de semana|sabado|domingo/.test(t)){ confirmApartado("finde"); return; }
+    if(/apart|reserva|separ/.test(t)){
+      stage="closing";
+      brayanSay("Simón, carnal: se aparta con $50 y la pagas al recoger.\n"+closeLine()); return;
+    }
+    if(/caro|carisimo|mucho|descuento|rebaja|oferta/.test(t)){
+      stage="closing";
+      brayanSay("Uf, carnal, la Doble son solo $100 más que la Sencillo y es la que todos se llevan.\n"+closeLine()); return;
+    }
+    if(/precio|cuanto|cuesta|vale|valor/.test(t)){
+      stage="presenting";
+      brayanSay("La Sencillo $2,699 y la Doble $2,799, carnal. La Doble es la más vendida.\n"+closeLine()); return;
+    }
+    if(/doble|dos jugadores|2 jugadores|retas|reta\b/.test(t)){
+      selectProduct("doble"); stage="closing";
+      brayanSay("La Doble, carnal: $2,799, para retas de 2 jugadores, la más vendida de la isla.\n"+closeLine()); return;
+    }
+    if(/sencill|simple|uno solo|1 jugador|individual/.test(t)){
+      selectProduct("sencillo"); stage="closing";
+      brayanSay("La Sencillo, carnal: $2,699, compacta y lista para jugar donde sea.\n"+closeLine()); return;
+    }
+    if(/hola|buenas|que onda|hey/.test(t)){
+      stage="presenting";
+      brayanSay("¡Qué onda, carnal! Maquinitas arcade: Sencillo $2,699, Doble $2,799.\n"+closeLine()); return;
+    }
+    if(/gracias|va\b|orale|simon|sale|ok|bueno|quiero|me la llevo|acepto/.test(t)){
+      if(stage==="done"){ brayanSay("Ya quedó, carnal. Toca el botón verde de WhatsApp.\nMi jefe Ulis te atiende de volada."); return; }
+      stage="closing";
+      brayanSay("¡Eso, carnal! Nomás dime el día y queda tuya.\n"+closeLine()); return;
+    }
+    if(/no\b|nel|paso|luego|despues/.test(t)){
+      brayanSay("Sin bronca, carnal, aquí ando en el mostrador.\nSi te animas, con $50 queda apartada."); stage="presenting"; return;
+    }
+    // Default: pitch the best seller + close (anti-loop: never re-ask what was answered)
+    stage="closing";
+    brayanSay("Carnal, la que se va volando es la Doble: $2,799, para 2 jugadores.\n"+closeLine());
+  }
+
+  /* ---------- TEXT FALLBACK + CHIPS ---------- */
+  function sendText(){
+    var v=textInput.value.trim(); if(!v) return;
+    textInput.value=""; userSay(v); respond(v);
+  }
+  $("btnSend").addEventListener("click", sendText);
+  textInput.addEventListener("keydown", function(e){ if(e.key==="Enter") sendText(); });
+  document.querySelectorAll(".chip").forEach(function(ch){
+    ch.addEventListener("click", function(){ var v=ch.getAttribute("data-say"); userSay(v); respond(v); });
+  });
+  voiceToggle.addEventListener("change", function(){ if(!voiceToggle.checked){ try{ window.speechSynthesis.cancel(); }catch(e){} setSpeaking(false); } });
+
+  sysSay("Demo lista. Toca “SIMULAR QUE LLEGA UN CLIENTE” o prende la cámara para que El Brayan empiece a vender.");
+})();
+</script>
+</body>
+</html>
