@@ -234,6 +234,7 @@
         </div>
         <div class="controls">
           <button class="btn btn-red" id="btnTalk" style="flex:1">🎤 HABLAR<span class="sub" style="display:block;font-size:12px;font-weight:600;opacity:.85">Tócalo y háblale — te escucha solo, sin volver a tocar</span></button>
+          <button class="btn btn-dark" id="btnStop" type="button" style="flex:0 1 auto;border-color:#6e2436">🛑 CALLARLO<span class="sub" style="display:block;font-size:12px;font-weight:600;opacity:.85">Para la voz y el micrófono al instante</span></button>
           <label class="switch"><input type="checkbox" id="voiceToggle" checked> 🔊 Voz del Brayan</label>
         </div>
         <div class="voice-picker" id="voicePicker">
@@ -291,6 +292,11 @@
   var selected="doble";
   var greeted=false;
   var speaking=false, wantListen=false, recog=null, recogActive=false, restartTimer=null, speakSeq=0;
+  // Anti-loop guards: what Brayan last SAID (normalized), when his voice
+  // actually stopped, and what the mic last HEARD — so his own voice coming
+  // back through the mic, or recognition re-delivering the same phrase,
+  // can never trigger a new response.
+  var lastSpokenNorm="", lastSpeakEndAt=0, lastHeardNorm="", lastHeardAt=0;
 
   var PRICES={ sencillo:2699, doble:2799 };
   function money(n){ return "$"+n.toLocaleString("es-MX"); }
@@ -450,36 +456,66 @@
     });
   }
 
+  function normText(s){
+    return (" "+(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim()+" ");
+  }
+  // True when a heard transcript is just Brayan's own last line coming back
+  // through the speaker→mic path: most of its words appear in what he said.
+  function isEcho(txt){
+    if(!lastSpokenNorm) return false;
+    var words=normText(txt).trim().split(" ").filter(function(w){ return w.length>=3; });
+    if(!words.length) return normText(txt).trim().length>=4 && lastSpokenNorm.indexOf(normText(txt))!==-1;
+    var hits=0;
+    for(var i=0;i<words.length;i++){ if(lastSpokenNorm.indexOf(" "+words[i]+" ")!==-1) hits++; }
+    return hits/words.length>=0.75;
+  }
+
   function speak(text){
     if(!voiceToggle.checked || !("speechSynthesis" in window)) { setSpeaking(false); maybeResumeListen(); return; }
     try{ window.speechSynthesis.cancel(); }catch(e){}
     var mySeq=++speakSeq;
     var clean=spokenText(text);
+    lastSpokenNorm=normText(clean);
+    // HALF-DUPLEX, like a real conversation: while Brayan talks, the mic is
+    // CLOSED. Before, a live recognition session kept hearing his own voice
+    // from the speaker and answered himself in a loop.
+    if(recog){ try{ recog.abort(); }catch(e){} recogActive=false; }
+    clearTimeout(restartTimer);
     var u=new SpeechSynthesisUtterance(clean);
     u.pitch=0.9; u.rate=0.95;
     var v=pickVoice(); if(v){ u.voice=v; u.lang=v.lang||"es-MX"; } else { u.lang="es-MX"; }
     setSpeaking(true);
-    var done=false, resumeTimer=null;
-    function finish(){
+    var done=false, resumeTimer=null, watchdog=null;
+    function finish(hard){
       // A stale utterance (interrupted or replaced) must not clear the
       // speaking state of a newer one, nor reopen the mic mid-line.
       if(done||mySeq!==speakSeq) return; done=true;
       if(resumeTimer) clearInterval(resumeTimer);
-      setSpeaking(false); maybeResumeListen();
+      if(watchdog) clearTimeout(watchdog);
+      // A hung utterance is CANCELLED, not just forgotten: the old code only
+      // flipped the state while the audio kept playing, and then reopened
+      // the mic on top of it — Brayan heard himself and answered forever.
+      if(hard){ try{ window.speechSynthesis.cancel(); }catch(e){} }
+      lastSpeakEndAt=Date.now();
+      setSpeaking(false);
+      // Guard delay before the mic may reopen: lets the speaker tail and
+      // the room echo die out, so the next thing heard is the customer.
+      setTimeout(function(){ if(mySeq===speakSeq) maybeResumeListen(); }, 1300);
     }
-    u.onend=finish; u.onerror=finish;
+    u.onend=function(){ finish(false); }; u.onerror=function(){ finish(false); };
     // Chrome/Android can silently PAUSE speechSynthesis mid-utterance (the
     // "se queda pausado" bug): nudging resume() while speaking keeps it going.
     resumeTimer=setInterval(function(){
       if(mySeq!==speakSeq){ clearInterval(resumeTimer); return; }
       try{ if(window.speechSynthesis.paused) window.speechSynthesis.resume(); }catch(e){}
     }, 600);
-    // Safety proportional to the line's length: if TTS still hangs or never
-    // fires onend (common in in-app webviews), free the state in ~3–7s
-    // instead of leaving the face stuck on "Hablando…" for 10s.
-    setTimeout(finish, Math.min(7000, Math.max(2800, clean.length*85)));
+    // Watchdog sized ABOVE the real duration of the line (Spanish TTS at
+    // rate 0.95 needs ~110 ms/char): it only fires on a genuine hang, and
+    // when it fires it kills the audio (finish(true)) instead of freeing
+    // the mic while Brayan is still talking.
+    watchdog=setTimeout(function(){ finish(true); }, Math.min(14000, Math.max(4500, clean.length*110)));
     try{ window.speechSynthesis.speak(u); window.speechSynthesis.resume(); }
-    catch(e){ finish(); }
+    catch(e){ finish(true); }
   }
   function setSpeaking(on){
     speaking=on;
@@ -491,7 +527,20 @@
   function stopSpeaking(){
     speakSeq++;
     try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(e){}
+    lastSpeakEndAt=Date.now();
     setSpeaking(false);
+  }
+  // Full stop for the CALLARLO button: voice off NOW, mic off, no
+  // auto-restart — Brayan stays quiet until the user taps HABLAR again.
+  function stopEverything(){
+    wantListen=false; clearWatchdog(); clearTimeout(restartTimer);
+    try{ recog && recog.abort(); }catch(e){}
+    recogActive=false;
+    stopSpeaking();
+    micPill.textContent="Micrófono en pausa";
+    setTalkBtn("idle");
+    diag("todo parado: El Brayan se calló y el micrófono quedó cerrado. Toca HABLAR para platicar otra vez.");
+    if(stage!=="idle") setState("🤫 Callado","live","El Brayan está callado, esperando.<small>Toca HABLAR para platicar por voz, o escríbele abajo.</small>");
   }
 
   /* ---------- VOICE IN (micrófono) with auto-restart ---------- */
@@ -589,7 +638,27 @@
     };
     r.onresult=function(ev){
       var txt=""; for(var i=ev.resultIndex;i<ev.results.length;i++){ if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript; }
-      txt=txt.trim(); if(txt){ hideMicError(); recogErrStreak=0; diag("te escuché: “"+txt+"”"); userSay(txt); respond(txt); }
+      txt=txt.trim(); if(!txt) return;
+      // Guard 1 — Brayan is talking: anything "heard" now is his own voice
+      // coming out of the speaker. Drop it, never answer it.
+      if(speaking){ diag("ignorado: llegó audio mientras El Brayan hablaba (era su propia voz)."); return; }
+      // Guard 2 — echo window: within 2.5 s of his voice stopping, a
+      // transcript that matches his last line is the room echo of that
+      // line, not the customer. (A real answer comes later: the mic only
+      // reopens 1.3 s after he finishes.)
+      if(Date.now()-lastSpeakEndAt<2500 && isEcho(txt)){
+        diag("ignorado: eso fue el eco de mi propia voz (“"+txt+"”). Sigo esperando al cliente.");
+        scheduleRestart(); return;
+      }
+      // Guard 3 — the same phrase re-delivered: recognition (or an echo of
+      // the customer) must not fire the same response twice in a row.
+      var n=normText(txt);
+      if(n===lastHeardNorm && Date.now()-lastHeardAt<6000){
+        diag("ignorado: la misma frase llegó dos veces (“"+txt+"”).");
+        scheduleRestart(); return;
+      }
+      lastHeardNorm=n; lastHeardAt=Date.now();
+      hideMicError(); recogErrStreak=0; diag("te escuché: “"+txt+"”"); userSay(txt); respond(txt);
     };
     r.onerror=function(ev){
       clearWatchdog(); recogActive=false;
@@ -666,6 +735,8 @@
     if(!greeted){ arrive(); stopSpeaking(); }
     startListen(true);
   });
+
+  $("btnStop").addEventListener("click", stopEverything);
 
   /* ---------- CAMERA (ojos) ---------- */
   var stream=null;
@@ -794,7 +865,7 @@
   document.querySelectorAll(".chip").forEach(function(ch){
     ch.addEventListener("click", function(){ var v=ch.getAttribute("data-say"); userSay(v); respond(v); });
   });
-  voiceToggle.addEventListener("change", function(){ if(!voiceToggle.checked){ try{ window.speechSynthesis.cancel(); }catch(e){} setSpeaking(false); } });
+  voiceToggle.addEventListener("change", function(){ if(!voiceToggle.checked) stopSpeaking(); });
 
   sysSay("Demo lista. Toca “SIMULAR QUE LLEGA UN CLIENTE” o prende la cámara para que El Brayan empiece a vender.");
 })();
